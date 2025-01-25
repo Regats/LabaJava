@@ -20,44 +20,58 @@ public class JapaneseCrossword {
 
     public void loadCrosswordFromFile(File file) {
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            int rows = 0;
-            int columns = -1;
+            // Считываем весь файл как одну строку
+            StringBuilder stringBuilder = new StringBuilder();
+            int character;
 
-            // Определяем количество строк и столбцов
-            while ((line = br.readLine()) != null) {
-                rows++;
-                String[] values = line.trim().split(" ");
-                if (columns == -1) {
-                    columns = values.length; // Определяем количество столбцов по первой строке
-                }
+            // Чтение всего файла в одну строку
+            while ((character = br.read()) != -1) {
+                stringBuilder.append((char) character);
             }
+
+            // Получаем содержимое как строку
+            String content = stringBuilder.toString().trim(); // Убираем пробелы по краям
+            String[] lines = content.split("\n"); // Разделяем по переносам строк
+
+            // Проверяем, что у нас достаточно данных
+            if (lines.length < 2) {
+                throw new IllegalArgumentException("Недостаточно данных для определения размеров.");
+            }
+
+            // Первую строку используем для размеров
+            String[] dimensions = lines[0].trim().split("\\s+");
+            int rows = Integer.parseInt(dimensions[0].trim());
+            int columns = Integer.parseInt(dimensions[1].trim());
 
             // Создаем массив нужного размера
             crosswordOriginal = new int[rows][columns];
             crosswordClone = new int[rows][columns];
 
-            // Считываем данные в массив
-            br.close(); // Закрываем предыдущий BufferedReader
-            BufferedReader brNew = new BufferedReader(new FileReader(file)); // Открываем снова для чтения
-
-            int currentRow = 0;
-            while ((line = brNew.readLine()) != null) {
-                String[] values = line.trim().split(" ");
-                for (int j = 0; j < values.length; j++) {
-                    crosswordOriginal[currentRow][j] = Integer.parseInt(values[j]);
+            // Заполняем массив данными
+            for (int i = 0; i < rows; i++) {
+                if (i + 1 < lines.length) { // Проверяем, есть ли следующая строка
+                    String[] values = lines[i + 1].trim().split("\\s+"); // Разделяем значения в строке
+                    for (int j = 0; j < columns; j++) {
+                        if (j < values.length) { // Проверяем, что значение существует
+                            crosswordOriginal[i][j] = Integer.parseInt(values[j].trim());
+                        }
+                    }
                 }
-                currentRow++;
             }
 
         } catch (IOException e) {
             System.err.println("Ошибка при чтении файла: " + e.getMessage());
+        } catch (NumberFormatException e) {
+            System.err.println("Ошибка формата числа: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            System.err.println("Ошибка: " + e.getMessage());
         }
     }
 
     public void drawField(GraphicsContext gc) {
-        sequencesOfOnesInColumns = findLengthsOfSequencesOfOnesInColumns(crosswordOriginal);
-        sequencesOfOnesInRows = findLengthsOfSequencesOfOnesInRows(crosswordOriginal);
+        sequencesOfOnesInColumns = findLengthsOfSequences(crosswordOriginal);
+        int[][] transposeMatrix = transposeMatrix(crosswordOriginal);
+        sequencesOfOnesInRows = findLengthsOfSequences(transposeMatrix);
         int maxLengthinColumns = findMaxLength(sequencesOfOnesInColumns);
         int maxLengthInRows = findMaxLength(sequencesOfOnesInRows);
 
@@ -71,7 +85,7 @@ public class JapaneseCrossword {
             for (int j = 0; j < sequencesOfOnesInColumns.size(); j++){
                 gc.setFill(Color.WHITE);
                 gc.fillRect((canvas.getWidth() - crosswordOriginal[0].length * CELL_SIZE) + j * CELL_SIZE,
-                        (canvas.getHeight() - crosswordOriginal.length - (i * CELL_SIZE) - CELL_SIZE), CELL_SIZE, CELL_SIZE);
+                        (canvas.getHeight() - crosswordOriginal.length * CELL_SIZE) - (i * CELL_SIZE) - CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 gc.setStroke(Color.BLACK);
                 gc.strokeRect((canvas.getWidth() - crosswordOriginal[0].length * CELL_SIZE) + j * CELL_SIZE,
                         (canvas.getHeight() - crosswordOriginal.length * CELL_SIZE) - (i * CELL_SIZE) - CELL_SIZE, CELL_SIZE, CELL_SIZE);
@@ -125,11 +139,12 @@ public class JapaneseCrossword {
                 }
             }
         }
-        gc.translate(gc.getCanvas().getWidth() - crosswordOriginal[0].length * CELL_SIZE, gc.getCanvas().getHeight() - crosswordOriginal.length * CELL_SIZE);
         drawCells(gc);
     }
 
     private void drawCells (GraphicsContext gc){
+        gc.save();
+        gc.translate(gc.getCanvas().getWidth() - crosswordOriginal[0].length * CELL_SIZE, gc.getCanvas().getHeight() - crosswordOriginal.length * CELL_SIZE);
         System.out.println("Перерисовал");
         gc.clearRect(0, 0, crosswordOriginal[0].length * CELL_SIZE, crosswordOriginal.length * CELL_SIZE);
         for (int i = 0; i < crosswordClone.length; i++) {
@@ -168,6 +183,7 @@ public class JapaneseCrossword {
                 gc.setLineWidth(1); // Возвращаем толщину линии к нормальной
             }
         }
+        gc.restore();
     }
 
     public void setupMouseListener(Canvas canvas) {
@@ -194,23 +210,21 @@ public class JapaneseCrossword {
         if (button == MouseButton.PRIMARY) { // Левая кнопка мыши
             if (crosswordClone[cellY][cellX] != -1) { // Проверяем, не заблокирована ли клетка
                 crosswordClone[cellY][cellX] = crosswordClone[cellY][cellX] == 1 ? 0 : 1; // Меняем состояние клетки
-                checkVictory(); // Проверяем на победу после изменения состояния
             }
         } else if (button == MouseButton.SECONDARY) { // Правая кнопка мыши
             crosswordClone[cellY][cellX] = crosswordClone[cellY][cellX] == -1 ? 0 : -1; // Блокируем/разблокируем клетку
         }
     }
 
-    private void checkVictory() {
-
-        boolean isVictory = Arrays.deepEquals(crosswordClone, crosswordOriginal);
-
-        if (isVictory) {
-            System.out.println("Поздравляем! Вы выиграли!");
-        }
+    public static int[][] transposeMatrix(int [][] m){
+        int[][] temp = new int[m[0].length][m.length];
+        for (int i = 0; i < m.length; i++)
+            for (int j = 0; j < m[0].length; j++)
+                temp[j][i] = m[i][j];
+        return temp;
     }
 
-    private static List<List<Integer>> findLengthsOfSequencesOfOnesInColumns(int[][] binaryArray) {
+    private static List<List<Integer>> findLengthsOfSequences(int[][] binaryArray) {
         List<List<Integer>> allSequences = new ArrayList<>();
 
         for (int j = 0; j < binaryArray[0].length; j++) {
@@ -239,7 +253,7 @@ public class JapaneseCrossword {
 
         return allSequences;
     }
-    private static List<List<Integer>> findLengthsOfSequencesOfOnesInRows(int[][] binaryArray) {
+    /*private static List<List<Integer>> findLengthsOfSequencesOfOnesInRows(int[][] binaryArray) {
         List<List<Integer>> allSequences = new ArrayList<>();
 
         for (int i = 0; i < binaryArray.length; i++) {
@@ -266,7 +280,7 @@ public class JapaneseCrossword {
         }
 
         return allSequences;
-    }
+    }*/
 
     public static int findMaxLength(List<List<Integer>> arrayLists){
         int maxLength = 0;

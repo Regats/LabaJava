@@ -91,7 +91,7 @@ public class HelloApplication extends Application {
         */
 
         // Создаем список фигур для дома
-        List<Shape> shapes = new ArrayList<>();
+        /*List<Shape> shapes = new ArrayList<>();
         // Стены дома
         // Стены дома (прямоугольник)
         shapes.add(new Rect(300, 300, 200, 150)); // Основной прямоугольник
@@ -112,7 +112,8 @@ public class HelloApplication extends Application {
         shapes.add(new Circle(475, 160, 10));
         shapes.add(new Circle(455, 150, 10));
         DrawableOutputStream out = new DrawableOutputStream(new FileOutputStream("shapes1.txt"));
-        out.writeDrawables(shapes);
+        out.writeDrawables(shapes);*/
+
         launch(args);
     }
 }

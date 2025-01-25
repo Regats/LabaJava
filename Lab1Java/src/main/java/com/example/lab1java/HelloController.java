@@ -81,7 +81,7 @@ public class HelloController {
         if (selectedFile != null) {
             crossword.loadCrosswordFromFile(selectedFile);
         };
-
+        crossword.printCrossword();
         crossword.drawField(gc);
         crossword.setupMouseListener(canvas);
     }
